@@ -9,6 +9,9 @@
 const char* ssid = "Roossien";
 const char* password = "RoossienWiFi1";
 
+int buttonState = 0; //BOOT knoppie
+int toggleScript = 0;
+
 void setup() {
   Serial.begin(115200);
   Serial.println("Booting");
@@ -24,7 +27,7 @@ void setup() {
   // ArduinoOTA.setPort(3232);
 
   // Hostname defaults to esp3232-[MAC]
-  // ArduinoOTA.setHostname("Jeffrey");
+   ArduinoOTA.setHostname("ESP32-Jeffrey");
 
   // No authentication by default
   // ArduinoOTA.setPassword("admin");
@@ -68,4 +71,11 @@ void setup() {
 
 void loop() {
   ArduinoOTA.handle();
+  buttonState = digitalRead(0);
+  if(buttonState == 0) //als BOOT ingedrukt wordt, start script.
+  {
+    Serial.println("Boot button pressed!!!");
+    toggleScript = 1; 
+    
+  }
 }
