@@ -146,7 +146,7 @@ void loop()
   {
     startScript = true;
   }
-  int groundDist = 150; //afstand van IR tot de grond. Heeft andere waarden op andere soorten vloeren. Mogelijk later automatisch laten calibreren via wifi?
+  int groundDist = 1500; //afstand van IR tot de grond. Heeft andere waarden op andere soorten vloeren. Mogelijk later automatisch laten calibreren via wifi?
   while(startScript == true)
   {
     if(analogRead(IR1) < groundDist && analogRead(IR2) < groundDist)
