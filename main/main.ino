@@ -7,10 +7,15 @@
 #include <ESPmDNS.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
+#include <WebSocketsClient.h>
 
 //WIFI settings
 const char* ssid = "Roossien";
 const char* password = "RoossienWiFi1";
+
+const char* BOT_NAME = "BumbleBert";
+
+WebSocketsClient webSocket;
 
 //i2c: 0x29 (Afstandmeter), 0x3c (oled), 0x68 (gyro)
 
@@ -38,7 +43,7 @@ int IRR = 34;
 int IRL = 39;
 
 //IR waarde van de tape. Staat op 1k om safe te zijn, maar werkt mogelijk slecht met andere vloeren.
-const int tapeWaarde = 2000;
+const int tapeWaarde = 1600;
 
 // Setting PWM properties
 const int freq = 300;
@@ -52,8 +57,8 @@ const int resolution = 8;
 //heleboel confusing waarden. Speed is de snelheid van de motor (255 max, ~180 min.)
 //de onderstaande waarden slaan de snelheid van de motor, en het sturen aan.
 //positief is vooruit, negatief is achteruit. 
-int maxSpeed = 220;
-int maxSpeedAchteruit = 0; //lagere waarden = slechter sturen, meer vastlopers.
+int maxSpeed = 200 ;
+int maxSpeedAchteruit = -150; //lagere waarden = slechter sturen, meer vastlopers.
 
 int speedL1 = 0;
 int speedL2 = 0;
@@ -122,10 +127,10 @@ void setup()
     break;
   }
   ArduinoOTA.setHostname("BumbleBert");
-  while (! Serial) 
-  {
-    delay(1);
-  }
+  webSocket.begin("194.171.181.139", 49154, "/");
+  webSocket.onEvent(webSocketEvent);
+  webSocket.setReconnectInterval(5000);
+
   //OTA update code
   ArduinoOTA
     .onStart([]() 
@@ -200,6 +205,7 @@ void setup()
 
 void loop() 
 {
+  webSocket.loop();
   bool startScript = false;
   int bootButton = digitalRead(0); // lees BOOT button
   if(bootButton == 0) 
@@ -210,7 +216,7 @@ void loop()
     startScript = true;
   }
 
-  //Karren maar! Motor driver code:
+  //Karren maar! Replace dit later met wifi check.
   while (startScript == true)
   {
     int statusSensorL = analogRead(IRL);
@@ -220,42 +226,147 @@ void loop()
     //de robot blijft over de tape lopen
     //while loop, om de inhoud van de loop zo snel mogelijk te laten lopen.
 
-    while (statusSensorL <= tapeWaarde)
+    while (statusSensorL <= tapeWaarde && statusSensorR < tapeWaarde)
     {
-      //stuur Links
-      speedL--;
-      speedR++;
+      speedL = speedL+2;
+      speedR = speedR-2;
       statusSensorL = analogRead(IRL);
       statusSensorR = analogRead(IRR);
       checkOverFlow();
       setEngineVars();
       writeEngine();
     }
-    while (statusSensorR <= tapeWaarde)
+    while (statusSensorR <= tapeWaarde && statusSensorL < tapeWaarde)
     {
-      //stuur Rechts
-      speedR--;
-      speedL++;
+      speedR = speedR+2;
+      speedL = speedL-2;
       statusSensorR = analogRead(IRR);
       statusSensorL = analogRead(IRL);
       checkOverFlow();
       setEngineVars();
       writeEngine();
     }
-    if (statusSensorR > tapeWaarde && statusSensorL > tapeWaarde)
+    while (statusSensorR > tapeWaarde && statusSensorL > tapeWaarde)
     {
       // Je vind het misschien een beetje raar, maar we zitten nog steeds op de tape, dus karren maar!
-      speedR++;
-      speedL++;
+      statusSensorR = analogRead(IRR);
+      statusSensorL = analogRead(IRL);
+      if (speedR > speedL)
+      {
+        //bocht linksom gemaakt (compenseren toevoegen)
+        speedL = speedL+4;
+        speedR = speedR-4;
+      }
+      if (speedL > speedR)
+      {
+        //bocht rechtsom gemaakt (compenseren toevoegen)
+        speedR = speedR+4;
+        speedL = speedL-4;
+      }
+      if (speedL == speedR)
+      {
+        speedR = speedR+2;
+        speedL = speedL+2;
+      }
+      speedR = maxSpeed;
+      speedL = maxSpeed;
+      checkOverFlow();
+      setEngineVars();
+      writeEngine();
     }
 
-    checkOverFlow();
-    setEngineVars();
-    writeEngine();
+    // checkOverFlow();
+    // setEngineVars();
+    // writeEngine();
   }
 }
 
 //functies
+void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) 
+{
+  switch(type) 
+  {
+    case WStype_DISCONNECTED:
+      Serial.printf("[WSc] Disconnected!\n");
+      break;
+    case WStype_CONNECTED:
+      Serial.printf("[WSc] Connected to url: %s\n", payload);
+      // send message to server when Connected
+      webSocket.sendTXT(BOT_NAME);
+      break;
+    case WStype_TEXT:
+      Serial.printf("[WSc] get text: %s\n", payload);
+      commandReceiver((char*) payload);
+      // send message to server
+      break;
+  }
+}
+
+void commandReceiver(char* command)
+{ 
+  // switch(command)
+  // {
+  //   case 0x0z:
+  //   //ping, doe niets.
+  //   resetDisplay();
+  //   display.println("Verbinding OK.");
+  //   display.println("Door karren!");
+  //   display.display();
+  //   break;
+  //   case "0":
+  //   //STOP
+  //   bool startScript = false;
+  //   break;
+  //   case 1:
+  //   //Start Race
+  //   bool startScript = true
+  //   break;
+  //   case 2:
+  //   //start tekening
+  //   break;
+  //   case 3:
+  //   //start doolhof
+  //   break;
+  //   case 4:
+  //   //start steen papier schaar
+  //   break;
+  //   case 8:
+  //   //steen papier schaar gewonnen
+  //   break;
+  //   case 9:
+  //   //steen papier schaar verloren
+  //   break;
+  //   case 10: 
+  //   //steen papier schaar gelijk spel
+  //   break;
+  //   case a:
+  //   stop();
+  //   break;
+  //   case b:
+  //   vooruit();
+  //   break;
+  //   case c:
+  //   achteruit();
+  //   case d:
+  //   bochtLinks();
+  //   break;
+  //   case e:
+  //   bochtRechts();
+  //   break;
+  //   case f:
+  //   cirkelLinks();
+  //   break;
+  //   case g:
+  //   cirkelRechts();
+  //   break;
+  //   default:
+  //   resetDisplay();
+  //   display.println(command);
+  //   display.display();
+  //   break;
+  // }
+}
+
 void checkOverFlow()
 {
     //voorkom dat de getallen hoger dan toegestaan worden. 255 is max!
