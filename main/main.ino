@@ -67,6 +67,12 @@ int speedR2 = 0;
 int speedL = 0;
 int speedR = 0;
 
+bool startScript = false;
+bool startRace = false;
+bool startDoolhof = false;
+bool startSteenPapierSchaar = false;
+bool startTekenen = false;
+
 void setup() 
 {
   Serial.begin(115200);
@@ -196,17 +202,18 @@ void setup()
   resetDisplay();
   display.println("Welkom!");
   display.print("IP:"); display.println(WiFi.localIP());
-  display.println("Druk BOOT");
-  display.println("<---");
+  display.println("Deze ESP heeft geen rem");
+  display.println("wachten op command");
   display.display();
   ArduinoOTA.handle();
+  
 
 }
 
 void loop() 
 {
   webSocket.loop();
-  bool startScript = false;
+  
   int bootButton = digitalRead(0); // lees BOOT button
   if(bootButton == 0) 
   {
@@ -216,8 +223,8 @@ void loop()
     startScript = true;
   }
 
-  //Karren maar! Replace dit later met wifi check.
-  while (startScript == true)
+  //Karren maar! voeg "|| startScript == true" toe om het te testen met de BOOT knop.
+  while (startRace == true || startScript == true)
   {
     int statusSensorL = analogRead(IRL);
     int statusSensorR = analogRead(IRR);
@@ -279,6 +286,21 @@ void loop()
     // setEngineVars();
     // writeEngine();
   }
+
+  while (startDoolhof == true)
+  {
+    //Doolhof
+  }
+
+  while (startSteenPapierSchaar == true)
+  {
+    //Steen papier schaar
+  }
+  while (startTekenen == true)
+  {
+    //Tekenen
+  }
+
 }
 
 //functies
@@ -319,7 +341,7 @@ void commandReceiver(char* command)
   //   break;
   //   case 1:
   //   //Start Race
-  //   bool startScript = true
+  //   bool startRace = true
   //   break;
   //   case 2:
   //   //start tekening
