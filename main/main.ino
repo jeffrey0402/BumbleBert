@@ -43,7 +43,7 @@ int IRR = 34;
 int IRL = 39;
 
 //IR waarde van de tape. Staat op 1k om safe te zijn, maar werkt mogelijk slecht met andere vloeren.
-const int tapeWaarde = 1600;
+const int tapeWaarde = 8;
 
 // Setting PWM properties
 const int freq = 300;
@@ -58,7 +58,7 @@ const int resolution = 8;
 //de onderstaande waarden slaan de snelheid van de motor, en het sturen aan.
 //positief is vooruit, negatief is achteruit. 
 int maxSpeed = 200 ;
-int maxSpeedAchteruit = -150; //lagere waarden = slechter sturen, meer vastlopers.
+int maxSpeedAchteruit = -160; //lagere waarden = slechter sturen, meer vastlopers.
 
 int speedL1 = 0;
 int speedL2 = 0;
@@ -72,6 +72,7 @@ bool startRace = false;
 bool startDoolhof = false;
 bool startSteenPapierSchaar = false;
 bool startTekenen = false;
+bool checkIR = false;
 
 void setup() 
 {
@@ -235,8 +236,8 @@ void loop()
 
     while (statusSensorL <= tapeWaarde && statusSensorR < tapeWaarde)
     {
-      speedL = speedL+2;
-      speedR = speedR-2;
+      speedL = speedL+4;
+      speedR = speedR-4;
       statusSensorL = analogRead(IRL);
       statusSensorR = analogRead(IRR);
       checkOverFlow();
@@ -245,8 +246,8 @@ void loop()
     }
     while (statusSensorR <= tapeWaarde && statusSensorL < tapeWaarde)
     {
-      speedR = speedR+2;
-      speedL = speedL-2;
+      speedR = speedR+4;
+      speedL = speedL-4;
       statusSensorR = analogRead(IRR);
       statusSensorL = analogRead(IRL);
       checkOverFlow();
@@ -285,6 +286,7 @@ void loop()
     // checkOverFlow();
     // setEngineVars();
     // writeEngine();
+    webSocket.loop();
   }
 
   while (startDoolhof == true)
@@ -295,11 +297,43 @@ void loop()
   while (startSteenPapierSchaar == true)
   {
     //Steen papier schaar
+     webSocket.loop();
+     int random = rand() % 3;
+     if (rand == 0)
+     {
+       //steen
+       webSocket.sendTXT("5");
+       resetDisplay();
+    
+     }
+     if (rand == 0)
+     {
+       //papier
+       webSocket.sendTXT("6");
+     }
+     if (rand == 0)
+     {
+       //schaar
+       webSocket.sendTXT("7");
+     }
   }
+
   while (startTekenen == true)
   {
     //Tekenen
   }
+
+  while (checkIR == true)
+  {
+    int statusSensorL = analogRead(IRL);
+    int statusSensorR = analogRead(IRR);
+
+    resetDisplay();
+    display.println(statusSensorL);
+    display.println(statusSensorR);
+    display.display();
+  }
+
 
 }
 
@@ -326,67 +360,87 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length)
 
 void commandReceiver(char* command)
 { 
-  // switch(command)
-  // {
-  //   case 0x0z:
-  //   //ping, doe niets.
-  //   resetDisplay();
-  //   display.println("Verbinding OK.");
-  //   display.println("Door karren!");
-  //   display.display();
-  //   break;
-  //   case "0":
-  //   //STOP
-  //   bool startScript = false;
-  //   break;
-  //   case 1:
-  //   //Start Race
-  //   bool startRace = true
-  //   break;
-  //   case 2:
-  //   //start tekening
-  //   break;
-  //   case 3:
-  //   //start doolhof
-  //   break;
-  //   case 4:
-  //   //start steen papier schaar
-  //   break;
-  //   case 8:
-  //   //steen papier schaar gewonnen
-  //   break;
-  //   case 9:
-  //   //steen papier schaar verloren
-  //   break;
-  //   case 10: 
-  //   //steen papier schaar gelijk spel
-  //   break;
-  //   case a:
-  //   stop();
-  //   break;
-  //   case b:
-  //   vooruit();
-  //   break;
-  //   case c:
-  //   achteruit();
-  //   case d:
-  //   bochtLinks();
-  //   break;
-  //   case e:
-  //   bochtRechts();
-  //   break;
-  //   case f:
-  //   cirkelLinks();
-  //   break;
-  //   case g:
-  //   cirkelRechts();
-  //   break;
-  //   default:
-  //   resetDisplay();
-  //   display.println(command);
-  //   display.display();
-  //   break;
-  // }
+  if (command == "z")
+  {
+    resetDisplay();
+    display.println("Verbinding OK.");
+    display.println("Door karren!");
+    display.display();
+  }
+    //ping, doe niets.
+  else if (command == "0")
+  {
+    //STOP
+    startScript = false;
+  }
+  else if (command == "1")
+  {
+    //Start Race
+    startRace = true;
+  }
+  else if (command == "2")
+  {
+    //Start Tekening 
+    startTekenen = true;
+  }
+  else if (command == "3")
+  {
+    //Start doolhof
+    startDoolhof = true;
+  }
+  else if (command == "4")
+  {
+    //Start sps
+    startSteenPapierSchaar = true;
+  }
+  else if (command == "8")
+  {
+    //sps gewonnen
+  }
+  else if (command == "9")
+  {
+    //sps verloren
+  }
+  else if (command == "10")
+  {
+    //sps gelijk
+  }
+  else if (command == "a")
+  {
+    //
+    stop();
+  }
+  else if (command == "b")
+  {
+    //vooruit
+    vooruit();
+  }
+  else if (command == "c")
+  {
+    //achteruit
+    achteruit();
+  }
+  else if (command == "d")
+  {
+    //links
+    bochtLinks();
+  }
+  else if (command == "e")
+  {
+    //rechts
+    bochtRechts();
+  }
+  else if (command == "f")
+  {
+    //links
+    cirkelLinks();
+  }
+  else if (command == "g")
+  {
+    //rechts
+    cirkelRechts();
+  }
+
 }
 
 void checkOverFlow()
@@ -482,22 +536,30 @@ void vooruit()
   ledcWrite(pwmL1, 0);
   ledcWrite(pwmL2, maxSpeed);
 }
+void achteruit()
+{
+  display.println("Achteruit");
+  ledcWrite(pwmR1, maxSpeedAchteruit);
+  ledcWrite(pwmR2, 0);
+  ledcWrite(pwmL1, maxSpeedAchteruit);
+  ledcWrite(pwmL2, 0);
+}
 
 void cirkelLinks()
 {
   display.println("Cirkel links");
   ledcWrite(pwmR1, maxSpeed);
-  ledcWrite(pwmR2, 0);
+  ledcWrite(pwmR2, maxSpeedAchteruit);
   ledcWrite(pwmL1, maxSpeed);
-  ledcWrite(pwmL2, 0);
+  ledcWrite(pwmL2, maxSpeedAchteruit);
 }
 
 void cirkelRechts()
 {
   display.println("Cirkel rechts");
   ledcWrite(pwmR1, maxSpeed);
-  ledcWrite(pwmR2, 0);
-  ledcWrite(pwmL1, 0);
+  ledcWrite(pwmR2, maxSpeedAchteruit);
+  ledcWrite(pwmL1, maxSpeedAchteruit);
   ledcWrite(pwmL2, maxSpeed);
 }
 
@@ -511,7 +573,7 @@ void bochtLinks()
 }
 void bochtRechts()
 {
-  display.println("Cirkel rechts");
+  display.println("bocht rechts");
   ledcWrite(pwmR1, 0);
   ledcWrite(pwmR2, maxSpeed);
   ledcWrite(pwmL1, 0);
