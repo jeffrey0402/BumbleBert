@@ -224,7 +224,7 @@ void loop()
   }
 
   //Karren maar! voeg "|| startScript == true" toe om het te testen met de BOOT knop.
-  while (startRace == true || startScript == true)
+  while (startRace == true)
   {
     int statusSensorL = analogRead(IRL);
     int statusSensorR = analogRead(IRR);
@@ -298,7 +298,23 @@ void loop()
   }
   while (startTekenen == true)
   {
-    //Tekenen
+    for(int i=0; i<=4; i++){
+    delay(5000);
+    vooruit();
+    delay(500);
+    stop();
+    delay(200);
+    circelrechts();
+    delay(200);
+    stop();
+    delay(200);
+    vooruit();
+    delay(500);
+    stop();
+    delay(200);
+    circellinks();
+    delay(800)
+    }
   }
 
 }
