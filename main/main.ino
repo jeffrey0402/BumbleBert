@@ -10,8 +10,8 @@
 #include <WebSocketsClient.h>
 
 //WIFI settings
-const char* ssid = "Roossien";
-const char* password = "RoossienWiFi1";
+const char* ssid = "BattleBotsRouter";
+const char* password = "NetwerkBoys";
 
 const char* BOT_NAME = "BumbleBert";
 
@@ -60,7 +60,7 @@ const int resolution = 8;
 //heleboel confusing waarden. Speed is de snelheid van de motor (255 max, ~180 min.)
 //de onderstaande waarden slaan de snelheid van de motor, en het sturen aan.
 //positief is vooruit, negatief is achteruit. 
-int maxSpeed = 180 ;
+int maxSpeed = 200;
 int maxSpeedAchteruit = -50; //lagere waarden = slechter sturen, meer vastlopers.
 
 int speedL1 = 0;
@@ -71,8 +71,8 @@ int speedL = 0;
 int speedR = 0;
 int speedtmp = 0;
 
-int speedFnc1 = 180;
-int speedFnc2 = 160;
+int speedFnc1 = 150;
+int speedFnc2 = 120;
 
 bool setupDoolhof = false;
 
@@ -228,7 +228,7 @@ void loop()
   }
 
   //Karren maar! voeg "|| startScript == true" toe om het te testen met de BOOT knop.
-  while (spel == "race" || startScript == true)
+  while (spel == "race")
   {
     int statusSensorL = analogRead(IRL);
     int statusSensorR = analogRead(IRR);
@@ -239,7 +239,7 @@ void loop()
 
     while (statusSensorL <= tapeWaarde && statusSensorR > tapeWaarde)
     {
-      speedR = speedR+2;
+      speedR = speedR+1;
       speedL = speedL-1;
       statusSensorL = analogRead(IRL);
       statusSensorR = analogRead(IRR);
@@ -249,7 +249,7 @@ void loop()
     }
     while (statusSensorR <= tapeWaarde && statusSensorL > tapeWaarde)
     {
-      speedL = speedL+2;
+      speedL = speedL+1;
       speedR = speedR-1;
       statusSensorR = analogRead(IRR);
       statusSensorL = analogRead(IRL);
@@ -262,32 +262,39 @@ void loop()
       // Je vind het misschien een beetje raar, maar we zitten nog steeds op de tape, dus karren maar!
       statusSensorR = analogRead(IRR);
       statusSensorL = analogRead(IRL);
-      if (speedR > speedL)
-      {
-        //bocht linksom gemaakt (compenseren toevoegen)
-        speedL = speedL+150;
-        speedR = speedR-150;
-        checkOverFlow();
-        setEngineVars();
-        writeEngine();
-        delay(25);
-      }
-      if (speedL > speedR)
-      {
-        //bocht rechtsom gemaakt (compenseren toevoegen)
-        speedL = speedL-150;
-        speedR = speedR+150;
-        checkOverFlow();
-        setEngineVars();
-        writeEngine();
-        delay(25);
-      }
+      // if (speedR > speedL)
+      // {
+      //   //bocht linksom gemaakt (compenseren toevoegen)
+      //   speedL = speedL+150;
+      //   speedR = speedR-150;
+      //   checkOverFlow();
+      //   setEngineVars();
+      //   writeEngine();
+      //   delay(25);
+      // }
+      // if (speedL > speedR)
+      // {
+      //   //bocht rechtsom gemaakt (compenseren toevoegen)
+      //   speedL = speedL-150;
+      //   speedR = speedR+150;
+      //   checkOverFlow();
+      //   setEngineVars();
+      //   writeEngine();
+      //   delay(25);
+      // }
       speedR = maxSpeed;
       speedL = maxSpeed;
       checkOverFlow();
       setEngineVars();
       writeEngine();
+      webSocket.loop();
     }
+    // while (statusSensorR < tapeWaarde && statusSensorL < tapeWaarde)
+    // {
+    //   stop();
+    //   webSocket.sendTXT("11");
+    //   spel = "geen";
+    // }
 
     // checkOverFlow();
     // setEngineVars();
@@ -300,13 +307,18 @@ void loop()
     webSocket.loop();
     int statusSensorR = analogRead(IRR);
     int statusSensorL = analogRead(IRL);
-    speedFnc1 = 150;
-    speedFnc2 = 120;
+    speedFnc1 = 90;
+    speedFnc2 = 90;
     
-    if (setupDoolhof == false)
+    while (setupDoolhof == false)
     {
+      int statusSensorR = analogRead(IRR);
+      int statusSensorL = analogRead(IRL);
       vooruit();
-      setupDoolhof = true;
+      if (statusSensorL > tapeWaarde || statusSensorR > tapeWaarde)
+      {
+        setupDoolhof = true; //setup complete; tape gevonden
+      }
     }
     
     while (setupDoolhof)
@@ -340,7 +352,6 @@ void loop()
      {
        //steen
        webSocket.sendTXT("5");
-       resetDisplay();
      }
      else if (random == 1)
      {
@@ -355,13 +366,13 @@ void loop()
      spel = "geen";
   }
 
-  while (spel == "tekenen")
+  while (spel == "tekenen" || startScript == true)
   {
     //Tekenen
     for(int i=0; i<=4; i++)
     {
       vooruit();
-      delay(250);
+      delay(120);
       stop();
       delay(200);
       cirkelRechts();
@@ -369,12 +380,14 @@ void loop()
       stop();
       delay(200);
       vooruit();
-      delay(250);
+      delay(120);
       stop();
       delay(200);
       cirkelLinks();
       delay(200);
     }
+    spel == "geen";
+    stop();
   }
 
   while (spel == "checkir")
@@ -387,6 +400,11 @@ void loop()
     display.println(statusSensorR);
     display.display();
   }
+
+  // while (spel == "geen" && startScript == false)
+  // {
+  //   stop();
+  // }
 
 
 }
@@ -418,6 +436,7 @@ void commandReceiver(uint8_t command)
   {
     case 48:
       spel = "geen";
+      stop();
     break;
     case 49:
       spel = "race";
@@ -571,10 +590,10 @@ void achteruit()
 
 void cirkelLinks()
 {
-  ledcWrite(pwmR1, 0);
-  ledcWrite(pwmR2, speedFnc2);
-  ledcWrite(pwmL1, speedFnc1);
-  ledcWrite(pwmL2, 0);
+  ledcWrite(pwmR1, speedFnc2);
+  ledcWrite(pwmR2, 0);
+  ledcWrite(pwmL1, 0);
+  ledcWrite(pwmL2, speedFnc1);
 }
 
 void cirkelRechts()
