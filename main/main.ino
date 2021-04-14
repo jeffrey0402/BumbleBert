@@ -1,24 +1,21 @@
-#include "Adafruit_VL53L0X.h"
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
 #include <WiFi.h>
-#include <ESPmDNS.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
 #include <WebSocketsClient.h>
 
 //WIFI settings
-const char* ssid = "Roossien";
-const char* password = "RoossienWiFi1";
+const char* ssid = "BattleBotsRouter";
+const char* password = "NetwerkBoys";
 
 const char* BOT_NAME = "BumbleBert";
 
 WebSocketsClient webSocket;
 
 String spel = "geen";
-bool startScript = false;
 
 //i2c: 0x29 (Afstandmeter), 0x3c (oled), 0x68 (gyro)
 
@@ -28,11 +25,6 @@ bool startScript = false;
 #define OLED_RESET     1
 #define SCREEN_ADDRESS 0x3C
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
-
-//Afstandsensor init
-Adafruit_VL53L0X lox = Adafruit_VL53L0X();
-
-//gyro init
 
 // Motor A/rechts connections
 int R1 = 17;
@@ -45,10 +37,10 @@ int L2 = 18;
 int IRR = 34;
 int IRL = 39;
 
-//IR waarde van de tape. Staat op 1k om safe te zijn, maar werkt mogelijk slecht met andere vloeren.
+//IR waarde van de tape.
 const int tapeWaarde = 200;
 
-// Setting PWM properties
+// PWM properties
 const int freq = 300;
 const int pwmR1 = 0;
 const int pwmR2 = 1;
@@ -56,12 +48,11 @@ const int pwmL1 = 2;
 const int pwmL2 = 3;
 const int resolution = 8;
 
-
-//heleboel confusing waarden. Speed is de snelheid van de motor (255 max, ~180 min.)
-//de onderstaande waarden slaan de snelheid van de motor, en het sturen aan.
-//positief is vooruit, negatief is achteruit. 
-int maxSpeed = 180 ;
-int maxSpeedAchteruit = -50; //lagere waarden = slechter sturen, meer vastlopers.
+// heleboel confusing waarden. Speed is de snelheid van de motor (255 max)
+// de onderstaande waarden slaan de snelheid van de motor, en het sturen aan.
+// positief is vooruit, negatief is achteruit. 
+int maxSpeed = 200;
+int maxSpeedAchteruit = -50;
 
 int speedL1 = 0;
 int speedL2 = 0;
@@ -71,8 +62,9 @@ int speedL = 0;
 int speedR = 0;
 int speedtmp = 0;
 
-int speedFnc1 = 180;
-int speedFnc2 = 160;
+//snelheid voor de vooruit(), achteruit() etc. functies.
+int speedFnc1 = 150;
+int speedFnc2 = 120;
 
 bool setupDoolhof = false;
 
@@ -97,7 +89,7 @@ void setup()
   pinMode(L1, OUTPUT);
   pinMode(L2, OUTPUT);
 
-  // configure LED PWM functionalitites
+  // PWM
   ledcSetup(pwmR1, freq, resolution);
   ledcSetup(pwmR2, freq, resolution);
   ledcSetup(pwmL1, freq, resolution);
@@ -108,7 +100,7 @@ void setup()
   ledcAttachPin(L1, pwmL1);
   ledcAttachPin(L2, pwmL2);
 
-  // Turn off motors - Initial state
+  // alle motoren uitzetten. Soms blijven ze aan na een update.
   digitalWrite(R1, LOW);
   digitalWrite(R2, LOW);
   digitalWrite(L1, LOW);
@@ -125,83 +117,22 @@ void setup()
   WiFi.begin(ssid, password);
   while (WiFi.waitForConnectResult() != WL_CONNECTED) 
   {
-    Serial.println("Verbinding mislukt! Opnieuw opstarten...");
+    Serial.println("Verbinding mislukt!");
     resetDisplay();
     display.println("SETUP");
     display.println("2: WiFi");
-    display.println("Verbinding mislukt! Druk RST om opnieuw te proberen");
+    display.println("Verbinding mislukt! Druk RST om opnieuw te proberen, of wacht 3s");
     display.display();
     delay(3000);
-    //ESP.restart();
     break;
+    //ESP.restart();
   }
-  ArduinoOTA.setHostname("BumbleBert");
   webSocket.begin("194.171.181.139", 49154, "/");
   webSocket.onEvent(webSocketEvent);
   webSocket.setReconnectInterval(5000);
-
-  //OTA update code
-  ArduinoOTA
-    .onStart([]() 
-    {
-      String type;
-      if (ArduinoOTA.getCommand() == U_FLASH)
-        type = "sketch";
-      else // U_SPIFFS
-        type = "filesystem";
-
-      // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
-      Serial.println("Start updating " + type);
-      resetDisplay();
-      display.println("Start update " + type);
-      display.display();
-    })
-    .onEnd([]() 
-    {
-      Serial.println("\nEnd");
-      resetDisplay();
-      display.println("Klaar!");
-      display.display();
-    })
-    .onProgress([](unsigned int progress, unsigned int total) 
-    {
-      Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
-      resetDisplay();
-      display.printf("Voortgang: %u%%\r", (progress / (total / 100)));
-      display.display();
-    })
-    .onError([](ota_error_t error) 
-    {
-      Serial.printf("Error[%u]: ", error);
-      if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
-      else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
-      else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
-      else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
-      else if (error == OTA_END_ERROR) Serial.println("End Failed");
-    });
-    ArduinoOTA.begin();
-
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
 
-  resetDisplay();
-  display.println("SETUP");
-  display.println("3: Check I2C");
-  display.display();
-  //check of VL53L0X werkt
-  if (!lox.begin()) 
-  {
-    Serial.println(F("Failed to boot VL53L0X"));
-    resetDisplay();
-    display.println("SETUP");
-    display.println("3: Check I2C");
-    display.println("Afstandsmeter werkt niet.");
-    display.display();
-    delay(3000);
-  }
-
-  //TODO: MPU6050 DATA
- 
   resetDisplay();
   display.println("Welkom!");
   display.print("IP:"); display.println(WiFi.localIP());
@@ -209,8 +140,6 @@ void setup()
   display.println("wachten op command");
   display.display();
   ArduinoOTA.handle();
-  
-
 }
 
 void loop() 
@@ -224,22 +153,20 @@ void loop()
     resetDisplay();
     display.println("Karren maar!");
     display.display();
-    startScript = true;
+    spel = "tekenen";
   }
 
-  //Karren maar! voeg "|| startScript == true" toe om het te testen met de BOOT knop.
-  while (spel == "race" || startScript == true)
+  while (spel == "race")
   {
     int statusSensorL = analogRead(IRL);
     int statusSensorR = analogRead(IRR);
-
     //Check sensor data, vergelijk het met de zwartheid van de tape.
     //de robot blijft over de tape lopen
     //while loop, om de inhoud van de loop zo snel mogelijk te laten lopen.
 
     while (statusSensorL <= tapeWaarde && statusSensorR > tapeWaarde)
     {
-      speedR = speedR+2;
+      speedR = speedR+1;
       speedL = speedL-1;
       statusSensorL = analogRead(IRL);
       statusSensorR = analogRead(IRR);
@@ -249,7 +176,7 @@ void loop()
     }
     while (statusSensorR <= tapeWaarde && statusSensorL > tapeWaarde)
     {
-      speedL = speedL+2;
+      speedL = speedL+1;
       speedR = speedR-1;
       statusSensorR = analogRead(IRR);
       statusSensorL = analogRead(IRL);
@@ -262,36 +189,13 @@ void loop()
       // Je vind het misschien een beetje raar, maar we zitten nog steeds op de tape, dus karren maar!
       statusSensorR = analogRead(IRR);
       statusSensorL = analogRead(IRL);
-      if (speedR > speedL)
-      {
-        //bocht linksom gemaakt (compenseren toevoegen)
-        speedL = speedL+150;
-        speedR = speedR-150;
-        checkOverFlow();
-        setEngineVars();
-        writeEngine();
-        delay(25);
-      }
-      if (speedL > speedR)
-      {
-        //bocht rechtsom gemaakt (compenseren toevoegen)
-        speedL = speedL-150;
-        speedR = speedR+150;
-        checkOverFlow();
-        setEngineVars();
-        writeEngine();
-        delay(25);
-      }
       speedR = maxSpeed;
       speedL = maxSpeed;
       checkOverFlow();
       setEngineVars();
       writeEngine();
+      webSocket.loop();
     }
-
-    // checkOverFlow();
-    // setEngineVars();
-    // writeEngine();
     webSocket.loop();
   }
 
@@ -300,13 +204,18 @@ void loop()
     webSocket.loop();
     int statusSensorR = analogRead(IRR);
     int statusSensorL = analogRead(IRL);
-    speedFnc1 = 150;
-    speedFnc2 = 120;
+    speedFnc1 = 90;
+    speedFnc2 = 90;
     
-    if (setupDoolhof == false)
+    while (setupDoolhof == false)
     {
+      int statusSensorR = analogRead(IRR);
+      int statusSensorL = analogRead(IRL);
       vooruit();
-      setupDoolhof = true;
+      if (statusSensorL > tapeWaarde || statusSensorR > tapeWaarde)
+      {
+        setupDoolhof = true; //setup complete; tape gevonden
+      }
     }
     
     while (setupDoolhof)
@@ -340,7 +249,6 @@ void loop()
      {
        //steen
        webSocket.sendTXT("5");
-       resetDisplay();
      }
      else if (random == 1)
      {
@@ -358,23 +266,30 @@ void loop()
   while (spel == "tekenen")
   {
     //Tekenen
-    for(int i=0; i<=4; i++)
+    delay(1000);
+    int i = 0;
+    while (i <= 4)
     {
+      i++;
       vooruit();
-      delay(250);
-      stop();
       delay(200);
+      stop();
+      delay(500);
       cirkelRechts();
-      delay(50);
+      delay(180);
       stop();
-      delay(200);
+      delay(500);
       vooruit();
-      delay(250);
+      delay(200);
       stop();
-      delay(200);
+      delay(500);
       cirkelLinks();
-      delay(200);
+      delay(350);
+      stop();
+      delay(500);
     }
+    spel = "geen";
+    stop();
   }
 
   while (spel == "checkir")
@@ -387,8 +302,6 @@ void loop()
     display.println(statusSensorR);
     display.display();
   }
-
-
 }
 
 //functies
@@ -418,6 +331,7 @@ void commandReceiver(uint8_t command)
   {
     case 48:
       spel = "geen";
+      stop();
     break;
     case 49:
       spel = "race";
@@ -443,7 +357,20 @@ void commandReceiver(uint8_t command)
       display.println("Steen papier schaar GOTY 2021");
       display.display();
     break;
+    case 56:
+      resetDisplay();
+      display.println("Steen papier schaar GOTY 2021");
+      display.println("Epische overwinning!!!!");
+      display.display();
+    break;
+    case 57:
+      resetDisplay();
+      display.println("Steen papier schaar GOTY 2021");
+      display.println("Volgende keer beter!");
+      display.display();
+    break;
     case 97:
+      spel = "geen";
       stop();
     break;
     case 98:
@@ -463,6 +390,12 @@ void commandReceiver(uint8_t command)
     break;
     case 103:
       cirkelRechts();
+    break;
+    case 104:
+      resetDisplay();
+      display.println("Steen papier schaar GOTY 2021");
+      display.println("Gelijk spel. Klopt niets van.");
+      display.display();
     break;
     case 122:
     break;
@@ -571,10 +504,10 @@ void achteruit()
 
 void cirkelLinks()
 {
-  ledcWrite(pwmR1, 0);
-  ledcWrite(pwmR2, speedFnc2);
-  ledcWrite(pwmL1, speedFnc1);
-  ledcWrite(pwmL2, 0);
+  ledcWrite(pwmR1, speedFnc2);
+  ledcWrite(pwmR2, 0);
+  ledcWrite(pwmL1, 0);
+  ledcWrite(pwmL2, speedFnc1);
 }
 
 void cirkelRechts()
